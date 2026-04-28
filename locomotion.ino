@@ -23,6 +23,27 @@ MPU6050: SDA, SCL
 #include <Wire.h>
 #include <MPU6050.h>
 
+// Pin definitions (adjust these to match your wiring)
+#define LEFT_IN1 4
+#define LEFT_IN2 5
+#define LEFT_ENA 6
+#define RIGHT_IN1 7
+#define RIGHT_IN2 8
+#define RIGHT_ENB 9
+#define LEFT_ENCA 2  // Interrupt pin
+#define LEFT_ENCB 10
+#define RIGHT_ENCA 3 // Interrupt pin
+#define RIGHT_ENCB 11
+
+// Global objects
+Motor leftMotor(LEFT_IN1, LEFT_IN2, LEFT_ENA);
+Motor rightMotor(RIGHT_IN1, RIGHT_IN2, RIGHT_ENB);
+Encoder leftEnc(LEFT_ENCA, LEFT_ENCB, LEFT_ENCA, RIGHT_ENCA);
+Encoder rightEnc(RIGHT_ENCA, RIGHT_ENCB, LEFT_ENCA, RIGHT_ENCA);
+Gyro gyro;
+Movement movement(leftMotor, rightMotor, leftEnc, rightEnc, gyro);
+CommandHandler cmd(movement);
+
 class Motor{
   private:
     int IN1, IN2, PWM;
