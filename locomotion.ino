@@ -7,9 +7,8 @@
 //Step 6 Command status and data update for Rpi feedback and debugging
 //Step 7 Development of control panel on Rpi for manual control and tuning
 //Step 8 Testing and Iteration for optimal performance on the field
-//Step 9 Navigation plan Development
-//Step 10 Integration with Rpi
-//Step 11 Development of Grabbing mechanism
+//Step 9 Integration with Rpi
+
 /*Required Pins:
 Motor A: IN1, IN2, ENA
 Motor B: IN3, IN4, ENB
