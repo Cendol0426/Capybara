@@ -1,6 +1,6 @@
 # Capybara
-Robosprint
-Locomotion
+Robosprint\n
+Locomotion\n
 Step 1 Class setup for Motor, Encoder, and Movement
 Step 2 Implement basic movement functions (forward, backward, turn)
 Step 3 PID Correction for wheel slip and different speed
