@@ -24,15 +24,15 @@ MPU6050: SDA, SCL
 #include <MPU6050.h>
 
 // Pin definitions (adjust these to match your wiring)
-#define LEFT_IN1 4
-#define LEFT_IN2 5
-#define LEFT_ENA 6
-#define RIGHT_IN1 7
-#define RIGHT_IN2 8
-#define RIGHT_ENB 9
-#define LEFT_ENCA 2  // Interrupt pin
-#define LEFT_ENCB 10
-#define RIGHT_ENCA 3 // Interrupt pin
+#define LEFT_IN1 2
+#define LEFT_IN2 3
+#define LEFT_ENA 4
+#define RIGHT_IN1 5
+#define RIGHT_IN2 6
+#define RIGHT_ENB 7
+#define LEFT_ENCA 8
+#define LEFT_ENCB 9
+#define RIGHT_ENCA 10
 #define RIGHT_ENCB 11
 
 // Global objects
