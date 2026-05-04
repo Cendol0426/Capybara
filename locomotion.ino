@@ -285,6 +285,8 @@ class Movement{
     Encoder &leftEnc;
     Encoder &rightEnc;
     Gyro gyro;
+    unsigned long lastPrint = 0;
+    int printInterval = 50; // ms (20Hz)
 
     //(YOU MUST TUNE THESE)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     // Distance Constants
@@ -362,7 +364,18 @@ class Movement{
 
         int leftSpeed = constrain(speed - correction, minSpeed, 255);
         int rightSpeed = constrain(speed + correction, minSpeed, 255);// adjust speeds based on error
-        
+        int avgSpeed = (leftSpeed + rightSpeed) / 2;
+
+        if (millis() - lastPrint > printInterval) {
+          Serial.print("ERR:");
+          Serial.println(combinedError);
+
+          Serial.print("SPD:");
+          Serial.println(avgSpeed);
+
+          lastPrint = millis();
+        }
+
         leftMotor.setSpeed(leftSpeed);
         rightMotor.setSpeed(rightSpeed);
       }
@@ -432,6 +445,17 @@ class Movement{
           leftSpeed  = speed + correction;
           rightSpeed = speed - correction;
         } // adjust speeds based on error for more accurate turns
+        int avgSpeed = (leftSpeed + rightSpeed) / 2;
+
+        if (millis() - lastPrint > printInterval) {
+          Serial.print("ERR:");
+          Serial.println(error);
+
+          Serial.print("SPD:");
+          Serial.println(avgSpeed);
+
+          lastPrint = millis();
+        }
 
         leftMotor.setSpeed(constrain(leftSpeed, 0, 255));
         rightMotor.setSpeed(constrain(rightSpeed, 0, 255));
