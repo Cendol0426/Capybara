@@ -16,6 +16,7 @@ Encoder A: pinA, pinB
 Encoder B: pinA, pinB
 Ultrasonic: trigPin, echoPin
 MPU6050: SDA, SCL
+Switch Button
 */
 
 #include <Arduino.h>
@@ -33,6 +34,7 @@ MPU6050: SDA, SCL
 #define LEFT_ENCB 9
 #define RIGHT_ENCA 10
 #define RIGHT_ENCB 11
+#define button 12
 
 // Global objects
 Motor leftMotor(LEFT_IN1, LEFT_IN2, LEFT_ENA);
@@ -42,6 +44,7 @@ Encoder rightEnc(RIGHT_ENCA, RIGHT_ENCB, LEFT_ENCA, RIGHT_ENCA);
 Gyro gyro;
 Movement movement(leftMotor, rightMotor, leftEnc, rightEnc, gyro);
 CommandHandler cmd(movement);
+Drive drive(leftMotor, rightMotor);
 
 class Motor{
   private:
@@ -532,6 +535,82 @@ class Movement{
     }
 };
 
+class Drive{
+  private:
+    Motor &leftMotor;
+    Motor &rightMotor;
+
+    PS2X ps2;
+
+    int constrainSpeed(int spd){
+      return constrain(spd, -255, 255);
+    }
+
+    void setMotor(Motor &motor, int speed){
+      speed = constrainSpeed(speed);
+      if (speed > 0){motor.forward();}
+      else if (speed < 0){motor.backward();}
+      else{motor.stop();}
+
+      motor.setSpeed(abs(speed));
+    }
+
+  public:
+    Drive(Motor &lm, Motor &rm): leftMotor(lm), rightMotor(rm) {}
+
+    void begin(){
+      leftMotor.begin(); 
+      rightMotor.begin();
+    }
+
+    void tank(int leftSpeed, int rightSpeed){
+      setMotor(leftMotor, leftSpeed);
+      setMotor(rightMotor, rightSpeed);
+    }
+
+    void update(){
+      while (Serial.available()){
+        char c = Serial.read();
+        if (c=='\r')continue;
+        if (c=='\n'){
+          handleCommand(buffer);
+          buffer = "";
+        }
+        else{
+          buffer += c;
+        }
+      }
+    }
+
+    void handleCommand(String) {
+      cmd.trim();
+      if(!cmd.startsWith("D:")) return;
+      cmd = cmd.substring(2);
+      int sep = cmd.indexOf(':');
+      String action;
+      String value;
+      if (sep == -1){action = cmd;}
+      else{
+        action = cmd.substring(0, sep);
+        value = cmd.substring(sep + 1);
+      }
+      action.toUpperCase();
+      if (action == "TANK"){
+        int comma = value.indexOf(',');
+        if (comma == -1){
+          Serial.println("ERR");
+          return;
+        }
+
+        int leftSpeed = value.substring(0, comma).toInt();
+        int rightSpeed = value.substring(comma + 1).toInt();
+        tank(leftSpeed, rightSpeed);
+      }
+      else if (action == "STOP"){stop();}
+    }
+
+}
+
 class CommandHandler{
   private:
     Movement &movement;
@@ -676,6 +755,8 @@ void setup(){
   Serial.begin(115200);
   Wire.begin();
 
+  pinMode(switch, INPUT_PULLUP);
+
   leftMotor.begin();
   rightMotor.begin();
   
@@ -693,5 +774,6 @@ void setup(){
 }
 
 void loop(){
-  cmd.update();
+  if (switch){drive.update();}
+  else{cmd.update();}
 }
