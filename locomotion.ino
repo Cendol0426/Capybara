@@ -654,12 +654,15 @@ void setup(){
 
   leftMotor.begin();
   rightMotor.begin();
-
+  
   leftEnc.begin();
   rightEnc.begin();
 
-  leftEnc.attachInterruptHandler();
-  rightEnc.attachInterruptHandler();
+  Encoder::leftInstance = &leftEnc;
+  Encoder::rightInstance = &rightEnc;
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCA), Encoder::leftISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCA), Encoder::rightISR, RISING);
+
   gyro.begin();
 
   Serial.println("Ready");
