@@ -33,9 +33,9 @@ Switch Button
 #define RIGHT_ENB 7
 #define LEFT_ENCA 8
 #define LEFT_ENCB 9
-#define RIGHT_ENCA 10
-#define RIGHT_ENCB 11
-#define button 12
+#define RIGHT_ENCA 14
+#define RIGHT_ENCB 15
+#define button 16
 #define PS2CLK 13
 #define PS2CMD 12
 #define PS2SEL 11
