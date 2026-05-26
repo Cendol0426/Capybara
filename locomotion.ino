@@ -22,6 +22,7 @@ Switch Button
 #include <Arduino.h>
 #include <Wire.h>
 #include <MPU6050.h>
+#include <PS2X_lib.h>
 
 // Pin definitions (adjust these to match your wiring)
 #define LEFT_IN1 2
@@ -32,9 +33,13 @@ Switch Button
 #define RIGHT_ENB 7
 #define LEFT_ENCA 8
 #define LEFT_ENCB 9
-#define RIGHT_ENCA 10
-#define RIGHT_ENCB 11
-#define button 12
+#define RIGHT_ENCA 14
+#define RIGHT_ENCB 15
+#define button 16
+#define PS2CLK 13
+#define PS2CMD 12
+#define PS2SEL 11
+#define PS2DAT 10
 
 // Global objects
 Motor leftMotor(LEFT_IN1, LEFT_IN2, LEFT_ENA);
@@ -541,6 +546,9 @@ class Drive{
     Motor &rightMotor;
 
     PS2X ps2;
+    int ps2clk, ps2cmd, ps2sel, ps2dat;
+
+    String buffer;
 
     int constrainSpeed(int spd){
       return constrain(spd, -255, 255);
@@ -556,60 +564,52 @@ class Drive{
     }
 
   public:
-    Drive(Motor &lm, Motor &rm): leftMotor(lm), rightMotor(rm) {}
+    Drive(Motor &lm, Motor &rm, int clk, int cmd, int sel, int dat): leftMotor(lm), rightMotor(rm), ps2clk(clk), ps2cmd(cmd), ps2sel(sel), ps2dat(dat) {}
 
     void begin(){
       leftMotor.begin(); 
       rightMotor.begin();
+      int err = ps2.config_gamepad(ps2clk, ps2cmd, ps2sel, ps2dat, false, false);
+      if(err == 0){
+        Serial.println("Controller Found and Configured");
+      }
+      else if(err == 1){
+        Serial.println("No controller found, check wiring");
+      }
+      else if(err == 2){
+        Serial.println("Controller found but not accepting commands");
+      }
+      else if(err == 3){
+        Serial.println("Controller refusing to enter config mode");
+      }
     }
+
+    void stop(){tank(0, 0);}
 
     void tank(int leftSpeed, int rightSpeed){
       setMotor(leftMotor, leftSpeed);
       setMotor(rightMotor, rightSpeed);
     }
 
+
     void update(){
-      while (Serial.available()){
-        char c = Serial.read();
-        if (c=='\r')continue;
-        if (c=='\n'){
-          handleCommand(buffer);
-          buffer = "";
-        }
-        else{
-          buffer += c;
-        }
-      }
+      ps2.read_gamepad(false, 0);
+
+      int leftY = ps2.Analog(PSS_LY);
+      int rightY = ps2.Analog(PSS_RY);
+
+      // Map 0-255 to -255 to 255 with deadzone
+      int leftSpeed = map(leftY, 0, 255, 255, -255);
+      int rightSpeed = map(rightY, 0, 255, 255, -255);
+
+      // Apply deadzone
+      if (abs(leftSpeed) < 20) leftSpeed = 0;
+      if (abs(rightSpeed) < 20) rightSpeed = 0;
+
+      tank(leftSpeed, rightSpeed);
+    
     }
-
-    void handleCommand(String) {
-      cmd.trim();
-      if(!cmd.startsWith("D:")) return;
-      cmd = cmd.substring(2);
-      int sep = cmd.indexOf(':');
-      String action;
-      String value;
-      if (sep == -1){action = cmd;}
-      else{
-        action = cmd.substring(0, sep);
-        value = cmd.substring(sep + 1);
-      }
-      action.toUpperCase();
-      if (action == "TANK"){
-        int comma = value.indexOf(',');
-        if (comma == -1){
-          Serial.println("ERR");
-          return;
-        }
-
-        int leftSpeed = value.substring(0, comma).toInt();
-        int rightSpeed = value.substring(comma + 1).toInt();
-        tank(leftSpeed, rightSpeed);
-      }
-      else if (action == "STOP"){stop();}
-    }
-
-}
+};
 
 class CommandHandler{
   private:
