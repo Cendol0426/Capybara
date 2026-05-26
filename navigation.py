@@ -1,167 +1,237 @@
+import serial
+import time
 import math
-import heapq
+import test_vision
 
-# Define the Cell class
-class Cell:
-    def __init__(self):
-        self.parent_i = 0  # Parent cell's row index
-        self.parent_j = 0  # Parent cell's column index
-        self.f = float('inf')  # Total cost of the cell (g + h)
-        self.g = float('inf')  # Cost from start to this cell
-        self.h = 0  # Heuristic cost from this cell to destination
+# ser = serial.Serial('/dev/ttyUSB0', 115200)
 
-# Define the size of the grid
-ROW = 9
-COL = 10
+cubes_present = {
+    f"CUBE{i}": True for i in range(1, 17)
+}
 
-# Check if a cell is valid (within the grid)
-def is_valid(row, col):
-    return (row >= 0) and (row < ROW) and (col >= 0) and (col < COL)
+checkpoint = {
+    "CP" : True
+}
+# Front layer CUBE 1 - 8
+# Back layer CUBE 9 - 16
+# Each enter shows which nodes are adjacent to each other
+game_graph = {
+    "START" :   ["LANE1", "LANE2", "LANE3", "LANE4", "LANE5", "LANE6", "LANE7", "LANE8"],
+    "END"   :   ["LANE1", "LANE2", "LANE3", "LANE4", "LANE5", "LANE6", "LANE7", "LANE8"],
+    "PRECP" :   ["LANE9", "CP"],
+    "CP"    :   ["PRECP"],
 
-# Check if a cell is unblocked
-def is_unblocked(grid, row, col):
-    return grid[row][col] == 1
+    "LANE1" :   ["START", "END", "CUBE1", "LANE2", "LANE9"],
+    "LANE2" :   ["START", "END", "CUBE2", "LANE1", "LANE2", "LANE9"],
+    "LANE3" :   ["START", "END", "CUBE3", "LANE2", "LANE4", "LANE9"],
+    "LANE4" :   ["START", "END", "CUBE4", "LANE3", "LANE5", "LANE9"],
+    "LANE5" :   ["START", "END", "CUBE5", "LANE4", "LANE6", "LANE9"],
+    "LANE6" :   ["START", "END", "CUBE6", "LANE5", "LANE7", "LANE9"],
+    "LANE7" :   ["START", "END", "CUBE7", "LANE6", "LANE8", "LANE9"],
+    "LANE8" :   ["START", "END", "CUBE8", "LANE7", "LANE9"],
+    "LANE9" :   ["LANE1", "LANE2", "LANE3", "LANE4", "LANE5", "LANE6", "LANE7", "LANE8", "PRECP"],
 
-# Check if a cell is the destination
-def is_destination(row, col, dest):
-    return row == dest[0] and col == dest[1]
+    # Front layer
+    "CUBE1" :   ["LANE1", "CUBE2", "CUBE9"],
+    "CUBE2" :   ["LANE2", "CUBE1", "CUBE3", "CUBE10"],
+    "CUBE3" :   ["LANE3", "CUBE2", "CUBE4", "CUBE11"],
+    "CUBE4" :   ["LANE4", "CUBE3", "CUBE5", "CUBE12"],
+    "CUBE5" :   ["LANE5", "CUBE4", "CUBE6", "CUBE13"],
+    "CUBE6" :   ["LANE6", "CUBE5", "CUBE7", "CUBE14"],
+    "CUBE7" :   ["LANE7", "CUBE6", "CUBE8", "CUBE15"],
+    "CUBE8" :   ["LANE8", "CUBE7", "CUBE16"],
 
-# Calculate the heuristic value of a cell (Euclidean distance to destination)
-def calculate_h_value(row, col, dest):
-    return ((row - dest[0]) ** 2 + (col - dest[1]) ** 2) ** 0.5
+    # Back layer
+    "CUBE9" :   ["CUBE1", "CUBE10"],
+    "CUBE10":   ["CUBE2", "CUBE9", "CUBE11"],
+    "CUBE11":   ["CUBE3", "CUBE10", "CUBE12"],
+    "CUBE12":   ["CUBE4", "CUBE11", "CUBE13"],
+    "CUBE13":   ["CUBE5", "CUBE12", "CUBE14"],
+    "CUBE14":   ["CUBE6", "CUBE13", "CUBE15"],
+    "CUBE15":   ["CUBE7", "CUBE14", "CUBE16"],
+    "CUBE16":   ["CUBE8", "CUBE15"]
+}
 
-# Trace the path from source to destination
-def trace_path(cell_details, dest):
-    print("The Path is ")
-    path = []
-    row = dest[0]
-    col = dest[1]
+node_coordinates = {
+    "START" :   (186.5, 25),
+    "END"   :   (186.5, 25),
+    "PRECP" :   (15, 262),
+    "CP"    :   (15, 287),
+    
+    "LANE1" :   (186.5, 82),
+    "LANE2" :   (186.5, 100),
+    "LANE3" :   (186.5, 118),
+    "LANE4" :   (186.5, 136),
+    "LANE5" :   (186.5, 154),
+    "LANE6" :   (186.5, 172),
+    "LANE7" :   (186.5, 190),
+    "LANE8" :   (186.5, 208),
+    "LANE9" :   (186.5, 262),
+    
+    "CUBE1" :   (41, 82),
+    "CUBE2" :   (41, 100),
+    "CUBE3" :   (41, 118),
+    "CUBE4" :   (41, 136),
+    "CUBE5" :   (41, 154),
+    "CUBE6" :   (41, 172),
+    "CUBE7" :   (41, 190),
+    "CUBE8" :   (41, 208),
+    
+    "CUBE9" :   (16, 82),
+    "CUBE10":   (16, 100),
+    "CUBE11":   (16, 118),
+    "CUBE12":   (16, 136),
+    "CUBE13":   (16, 154),
+    "CUBE14":   (16, 172),
+    "CUBE15":   (16, 190),
+    "CUBE16":   (16, 208)
+}
 
-    # Trace the path from destination to source using parent cells
-    while not (cell_details[row][col].parent_i == row and cell_details[row][col].parent_j == col):
-        path.append((row, col))
-        temp_row = cell_details[row][col].parent_i
-        temp_col = cell_details[row][col].parent_j
-        row = temp_row
-        col = temp_col
+robot_state = {
+    "current_node": "START",
+    "heading": 90.0 # Assume 90 degrees is facing "North" (up the Y axis)
+}
 
-    # Add the source cell to the path
-    path.append((row, col))
-    # Reverse the path to get the path from source to destination
-    path.reverse()
+#PLAN:
+# go next node
+# get distance
+# once reach, send activation to serial
+# get vision
+# got cube, take.
+# no cube, go next node
+# repeat until cube16
 
-    # Print the path
-    for i in path:
-        print("->", i, end=" ")
-    print()
+# Breath-first search
+def get_path(start, target, graph, state):
+    queue = [(start, [start])]
+    visited = set()
+    visited.add(start)
 
-# Implement the A* search algorithm
-def a_star_search(grid, src, dest):
-    # Check if the source and destination are valid
-    if not is_valid(src[0], src[1]) or not is_valid(dest[0], dest[1]):
-        print("Source or destination is invalid")
-        return
+    while queue:
+        current, path = queue.pop(0)
+        if current == target:
+            return path
+        for neighbour in graph[current]:
+            if neighbour not in visited:
+                # is this move legal
+                is_safe_zone = neighbour not in state
+                # can move to space if cube is collected
+                is_empty_space = (neighbour in state and state[neighbour] == False)
+                
+                is_target = (neighbour == target)
 
-    # Check if the source and destination are unblocked
-    if not is_unblocked(grid, src[0], src[1]) or not is_unblocked(grid, dest[0], dest[1]):
-        print("Source or the destination is blocked")
-        return
+                if is_safe_zone or is_empty_space or is_target:
+                    visited.add(neighbour)
+                    queue.append((neighbour, path + [neighbour]))
+    return None
 
-    # Check if we are already at the destination
-    if is_destination(src[0], src[1], dest):
-        print("We are already at the destination")
-        return
+def drive_to_next_node(next_node):
+    current = robot_state["current_node"]
 
-    # Initialize the closed list (visited cells)
-    closed_list = [[False for _ in range(COL)] for _ in range(ROW)]
-    # Initialize the details of each cell
-    cell_details = [[Cell() for _ in range(COL)] for _ in range(ROW)]
+    curr_x, curr_y = node_coordinates[current]
+    next_x, next_y = node_coordinates[next_node]
+    
+    # Calculate Euclidean distance
+    dx = next_x - curr_x
+    dy = next_y - curr_y
+    distance = math.hypot(dx, dy)
+    
+    # Calculate the angle to the target
+    target_heading = math.degrees(math.atan2(dy, dx))
+    
+    # Calculate how much the robot needs to turn
+    turn_angle = target_heading - robot_state["heading"]
+    # Normalize to -180 - 180
+    turn_angle = (turn_angle + 180) % 360 - 180
+    
+    print(f"\nMoving {current} -> {next_node}")
+    
+    # Execute the Turn Instruction
+    if turn_angle > 1.0:
+        send_instruction(f"M:TL:{abs(turn_angle)}")
+    elif turn_angle < -1.0:
+        send_instruction(f"M:TR:{abs(turn_angle)}")
+        
+    # Execute the Forward Instruction
+    if distance > 1.0:
+        send_instruction(f"M:FWD:{distance}")
+        
+    # Update robot state
+    robot_state["current_node"] = next_node
+    robot_state["heading"] = target_heading
 
-    # Initialize the start cell details
-    i = src[0]
-    j = src[1]
-    cell_details[i][j].f = 0
-    cell_details[i][j].g = 0
-    cell_details[i][j].h = 0
-    cell_details[i][j].parent_i = i
-    cell_details[i][j].parent_j = j
+def get_vision():
+    return
 
-    # Initialize the open list (cells to be visited) with the start cell
-    open_list = []
-    heapq.heappush(open_list, (0.0, i, j))
+def send_instruction(cmd_string):
+    print(f"Command: {cmd_string}")
+    
+    # full_cmd = f"{cmd_string}\n".encode('utf-8')
+    # ser.write(full_cmd)
+    
+    # # Wait for the 'Movement executed' reply from CommandHandler
+    # while True:
+    #     if ser.in_waiting > 0:
+    #         reply = ser.readline().decode('utf-8').strip()
+    #         if "executed" in reply.lower():
+    #             return
+    #     time.sleep(0.05)
 
-    # Initialize the flag for whether destination is found
-    found_dest = False
+    time.sleep(1)
 
-    # Main loop of A* search algorithm
-    while len(open_list) > 0:
-        # Pop the cell with the smallest f value from the open list
-        p = heapq.heappop(open_list)
+def main():    
+    mission_targets = [f"CUBE{i}" for i in range(1, 17)]
+    
+    for target_cube in mission_targets:
+        # Check if we already got it
+        if cubes_present[target_cube] == False:
+            continue
+            
+        print(f"\nNEW TARGET: {target_cube}")
+        
+        # Calculate path from current position
+        current_loc = robot_state["current_node"]
+        path = get_path(current_loc, target_cube, game_graph, cubes_present)
+        
+        if path is None:
+            print(f"{target_cube} is blocked! Skipping for now.")
+            continue
+            
+        print(f"Path Found: {path}")
+        
+        # Drive step-by-step
+        for step in path[1:]:
+            drive_to_next_node(step)
+            
+        print(f"Arrived at {target_cube}.")
+        
+        # VISION AND GRIPPER
+        is_cube, is_correct = True, True
+        if (is_cube and is_correct):
+            send_instruction("M:PICKUP")
+            print("PICKUP")
+        
+        # Mark as collected
+        cubes_present[target_cube] = False
+        print(f"{target_cube} collected. It is now empty space.")
 
-        # Mark the cell as visited
-        i = p[1]
-        j = p[2]
-        closed_list[i][j] = True
-
-        # For each direction, check the successors
-        directions = [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
-        for dir in directions:
-            new_i = i + dir[0]
-            new_j = j + dir[1]
-
-            # If the successor is valid, unblocked, and not visited
-            if is_valid(new_i, new_j) and is_unblocked(grid, new_i, new_j) and not closed_list[new_i][new_j]:
-                # If the successor is the destination
-                if is_destination(new_i, new_j, dest):
-                    # Set the parent of the destination cell
-                    cell_details[new_i][new_j].parent_i = i
-                    cell_details[new_i][new_j].parent_j = j
-                    print("The destination cell is found")
-                    # Trace and print the path from source to destination
-                    trace_path(cell_details, dest)
-                    found_dest = True
-                    return
-                else:
-                    # Calculate the new f, g, and h values
-                    g_new = cell_details[i][j].g + 1.0
-                    h_new = calculate_h_value(new_i, new_j, dest)
-                    f_new = g_new + h_new
-
-                    # If the cell is not in the open list or the new f value is smaller
-                    if cell_details[new_i][new_j].f == float('inf') or cell_details[new_i][new_j].f > f_new:
-                        # Add the cell to the open list
-                        heapq.heappush(open_list, (f_new, new_i, new_j))
-                        # Update the cell details
-                        cell_details[new_i][new_j].f = f_new
-                        cell_details[new_i][new_j].g = g_new
-                        cell_details[new_i][new_j].h = h_new
-                        cell_details[new_i][new_j].parent_i = i
-                        cell_details[new_i][new_j].parent_j = j
-
-    # If the destination is not found after visiting all cells
-    if not found_dest:
-        print("Failed to find the destination cell")
-
-def main():
-    # Define the grid (1 for unblocked, 0 for blocked)
-    grid = [
-        [1, 0, 1, 1, 1, 1, 0, 1, 1, 1],
-        [1, 1, 1, 0, 1, 1, 1, 0, 1, 1],
-        [1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
-        [0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
-        [1, 1, 1, 0, 1, 1, 1, 0, 1, 0],
-        [1, 0, 1, 1, 1, 1, 0, 1, 0, 0],
-        [1, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-        [1, 0, 1, 1, 1, 1, 0, 1, 1, 1],
-        [1, 1, 1, 0, 0, 0, 1, 0, 0, 1]
-    ]
-
-    # Define the source and destination
-    src = [8, 0]
-    dest = [0, 0]
-
-    # Run the A* search algorithm
-    a_star_search(grid, src, dest)
+        target = "CP"
+        path = get_path(robot_state["current_node"], target, game_graph, checkpoint)
+        if path is None:
+            print(f"Cannot reach {target_cube}, skipping for now.")
+            continue
+            
+        print(f"Path Found: {path}")
+        
+        for step in path[1:]:
+            drive_to_next_node(step)
+            
+        print(f"Arrived at {target_cube}.")
+    
+    print("Routing back to END zone...")
+    go_home_path = get_path(robot_state["current_node"], "END", game_graph, cubes_present)
+    for step in go_home_path[1:]:
+        drive_to_next_node(step)
 
 if __name__ == "__main__":
     main()
