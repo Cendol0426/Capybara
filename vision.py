@@ -10,7 +10,7 @@ MEGA_PORT = '/dev/ttyUSB0'
 BAUD_RATE = 115200
 
 try:
-    api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyADPa8cFlTQ-hduit4LTY2kQllWZ0ZDn60")
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
     ai_client = genai.Client(api_key=api_key)
     print(">>> Gemini API configured.")
 except Exception as e:
